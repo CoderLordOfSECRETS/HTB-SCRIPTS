@@ -25,13 +25,18 @@ def run_gobuster(ip_address, dir_options, subdomain_options):
     if "-w" not in subdomain_options:
         subdomain_options += f" -w {subdomains_file}"
 
+    def recursive_gobuster(url, options):
+        output = subprocess.check_output(['gobuster', 'dir', '-u', url] + options.split(), text=True)
+        directories = re.findall(r'^\[[\w\s]+\] (\S+)', output, re.MULTILINE)
+        print(url)
+        for directory in directories:
+            sub_url = url + '/' + directory
+            print("|   " + directory)
+            recursive_gobuster(sub_url, options)
+
     # Run gobuster in dir mode
     print(f"Running gobuster in dir mode with options: {dir_options}")
-    dir_output = subprocess.check_output(['gobuster', 'dir', '-u', f'http://{ip_address}'] + dir_options.split(), text=True)
-
-    # Parse and display directories
-    directories = re.findall(r'^\[[\w\s]+\] (\S+)', dir_output, re.MULTILINE)
-    print("Directories:", ", ".join(directories))
+    recursive_gobuster(f'http://{ip_address}', dir_options)
 
     # Run gobuster in subdomain mode
     print(f"\nRunning gobuster in subdomain mode with options: {subdomain_options}")
