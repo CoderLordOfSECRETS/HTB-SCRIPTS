@@ -11,7 +11,7 @@ def download_default_wordlists():
 
     # Download default wordlists
     subprocess.run(["wget", "-O", subdomains_file.name, "https://github.com/danielmiessler/SecLists/raw/master/Discovery/DNS/subdomains-top1million-110000.txt"])
-    subprocess.run(["wget", "-O", directories_file.name, "https://github.com/danielmiessler/SecLists/raw/master/Discovery/Web-Content/raft-large-directories.txt"])
+    subprocess.run(["wget", "-O", directories_file.name, "https://github.com/danielmiessler/SecLists/raw/master/Discovery/Web-Content/directory-list-2.3-big.txt"])
 
     return subdomains_file.name, directories_file.name
 
