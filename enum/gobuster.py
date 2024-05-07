@@ -83,7 +83,7 @@ def run_command(command):
 
 # Perform subdomain enumeration using gobuster
 print("Enumerating subdomains for {}...".format(args.domain))
-subdomain_command = ["gobuster", "dns", "-d", args.domain, "-w", subdomain_wordlist, "-q", "-o", "gobuster_subdomains_{}.txt".format(args.domain)]
+subdomain_command = ["gobuster", "dns", "-d", args.domain, "-w", subdomain_wordlist.txt, "-q", "-o", "gobuster_subdomains_{}.txt".format(args.domain)]
 run_command(subdomain_command)
 
 # Parse and update /etc/hosts file with subdomains
@@ -112,7 +112,7 @@ with open("gobuster_subdomains_{}.txt".format(args.domain)) as subdomains_file:
 # Function to perform directory enumeration recursively
 def enumerate_directories_recursive(url, depth, current_node):
     # Perform directory enumeration using gobuster
-    directory_command = ["gobuster", "dir", "-u", url, "-w", dir_wordlist, "-q", "-o", "gobuster_directories_{}.txt".format(args.domain)]
+    directory_command = ["gobuster", "dir", "-u", url, "-w", dir_wordlist.txt, "-q", "-o", "gobuster_directories_{}.txt".format(args.domain)]
     run_command(directory_command)
 
     # Extract directories and add them to the subdomain tree
