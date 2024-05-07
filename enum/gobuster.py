@@ -6,10 +6,11 @@ import socket
 
 # Function to print usage information
 def usage():
-    print("Usage: {} -d <domain> [-p <port>]".format(sys.argv[0]))
+    print("Usage: {} -d <domain> [-p <port>] [-i <ip_address>]".format(sys.argv[0]))
     print("Options:")
     print("  -d <domain>       Specify the target domain")
     print("  -p <port>         Specify the port on the target host (default: 80)")
+    print("  -i <ip_address>   Specify the IP address to use for all subdomains (optional)")
     sys.exit(1)
 
 # Function to resolve IP address of a domain
@@ -24,6 +25,7 @@ def resolve_ip(domain):
 # Parse command-line arguments
 domain = None
 port = None
+ip_address = None
 try:
     args = sys.argv[1:]
     while args:
@@ -32,6 +34,8 @@ try:
             domain = args.pop(0)
         elif opt == "-p":
             port = args.pop(0)
+        elif opt == "-i":
+            ip_address = args.pop(0)
         else:
             print("Invalid option: {}".format(opt), file=sys.stderr)
             usage()
@@ -70,14 +74,23 @@ subdomain_tree = {}
 with open("gobuster_subdomains_{}.txt".format(domain)) as subdomains_file:
     for line in subdomains_file:
         subdomain = line.split()[0]
-        ip_address = resolve_ip(subdomain)
-        update_hosts_file(ip_address, subdomain)
-        print("Found subdomain:", subdomain, "IP:", ip_address)
-        parts = subdomain.split('.')
-        current_level = subdomain_tree
-        for part in parts:
-            current_level = current_level.setdefault(part, {})
-        current_level[subdomain] = []
+        if ip_address:
+            update_hosts_file(ip_address, subdomain)
+            print("Found subdomain:", subdomain, "IP:", ip_address)
+            parts = subdomain.split('.')
+            current_level = subdomain_tree
+            for part in parts:
+                current_level = current_level.setdefault(part, {})
+            current_level[subdomain] = ip_address
+        else:
+            ip_address = resolve_ip(subdomain)
+            update_hosts_file(ip_address, subdomain)
+            print("Found subdomain:", subdomain, "IP:", ip_address)
+            parts = subdomain.split('.')
+            current_level = subdomain_tree
+            for part in parts:
+                current_level = current_level.setdefault(part, {})
+            current_level[subdomain] = []
 
 # Function to perform directory enumeration recursively
 def enumerate_directories_recursive(url, depth, current_node):
