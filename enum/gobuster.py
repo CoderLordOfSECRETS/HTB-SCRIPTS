@@ -40,19 +40,23 @@ args = parser.parse_args()
 subdomain_wordlist = args.wordlists[0] if args.wordlists else "subdomains-top1million-110000.txt"
 dir_wordlist = args.wordlists[1] if args.wordlists else "directory-list-2.3-big.txt"
 
-# Force the naming of downloaded wordlists
+# Download default wordlists if they don't exist
 if not args.wordlists:
-    print("No wordlists specified. Downloading default wordlists...")
-    wordlist_urls = {
-        "subdomain_wordlist": "https://github.com/danielmiessler/SecLists/raw/master/Discovery/DNS/subdomains-top1million-110000.txt",
-        "dir_wordlist": "https://github.com/danielmiessler/SecLists/raw/master/Discovery/Web-Content/directory-list-2.3-big.txt"
-    }
-    for wordlist_name, wordlist_url in wordlist_urls.items():
-        print(f"Downloading {wordlist_name}...")
-        r = requests.get(wordlist_url, allow_redirects=True)
-        with open(wordlist_name, 'wb') as f:
+    if not os.path.exists(subdomain_wordlist):
+        print("Downloading default subdomain wordlist...")
+        subdomain_wordlist_url = "https://github.com/danielmiessler/SecLists/raw/master/Discovery/DNS/subdomains-top1million-110000.txt"
+        r = requests.get(subdomain_wordlist_url, allow_redirects=True)
+        with open(subdomain_wordlist, 'wb') as f:
             f.write(r.content)
-    print("Download complete.")
+        print("Download complete.")
+
+    if not os.path.exists(dir_wordlist):
+        print("Downloading default directory wordlist...")
+        dir_wordlist_url = "https://github.com/danielmiessler/SecLists/raw/master/Discovery/Web-Content/directory-list-2.3-big.txt"
+        r = requests.get(dir_wordlist_url, allow_redirects=True)
+        with open(dir_wordlist, 'wb') as f:
+            f.write(r.content)
+        print("Download complete.")
 
 # Set default port if not provided
 port = args.port
