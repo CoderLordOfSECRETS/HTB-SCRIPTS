@@ -50,9 +50,8 @@ if not args.wordlists:
     for wordlist_name, wordlist_url in wordlist_urls.items():
         print(f"Downloading {wordlist_name}...")
         r = requests.get(wordlist_url, allow_redirects=True)
-        open(wordlist_name, 'wb').write(r.content)
-        # Force rename the downloaded wordlist
-        os.rename(wordlist_name, f"{wordlist_name}")
+        with open(wordlist_name, 'wb') as f:
+            f.write(r.content)
     print("Download complete.")
 
 # Set default port if not provided
@@ -60,6 +59,9 @@ port = args.port
 
 # Function to update /etc/hosts file
 def update_hosts_file(ip_address, domain):
+    if os.geteuid() != 0:
+        print("Warning: Updating /etc/hosts requires root privileges. Please run the script as root or using sudo.")
+        return
     with open("/etc/hosts", "a") as hosts_file:
         hosts_file.write("{} {}\n".format(ip_address, domain))
 
@@ -123,7 +125,7 @@ def enumerate_directories_recursive(url, depth, current_node):
     # Extract newly discovered subdomains and initiate directory scans
     with open("gobuster_directories_{}.txt".format(args.domain)) as directories_file:
         for line in directories_file:
-            new_subdomain = line.split("//")[1].split("/")[0]
+            new_subdomain = line.strip()
             enumerate_directories_recursive("http://{}".format(new_subdomain), depth + 1, current_node)
 
 # Perform initial directory enumeration
