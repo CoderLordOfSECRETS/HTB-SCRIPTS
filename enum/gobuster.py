@@ -5,6 +5,7 @@ import subprocess
 import socket
 import argparse
 import requests
+import os
 
 # Function to print usage information
 def usage():
@@ -39,6 +40,7 @@ args = parser.parse_args()
 subdomain_wordlist = args.wordlists[0] if args.wordlists else "subdomains.txt"
 dir_wordlist = args.wordlists[1] if args.wordlists else "directory-list-2.3-big.txt"
 
+# Force the naming of downloaded wordlists
 if not args.wordlists:
     print("No wordlists specified. Downloading default wordlists...")
     wordlist_urls = {
@@ -49,6 +51,8 @@ if not args.wordlists:
         print(f"Downloading {wordlist_name}...")
         r = requests.get(wordlist_url, allow_redirects=True)
         open(wordlist_name, 'wb').write(r.content)
+        # Force rename the downloaded wordlist
+        os.rename(wordlist_name, f"{wordlist_name}.txt")
     print("Download complete.")
 
 # Set default port if not provided
