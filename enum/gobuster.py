@@ -37,7 +37,7 @@ parser.add_argument("-w", "--wordlists", nargs=2, metavar=("subdomain_wordlist",
 args = parser.parse_args()
 
 # Check if custom wordlists are provided, otherwise download default wordlists
-subdomain_wordlist = args.wordlists[0] if args.wordlists else "subdomains.txt"
+subdomain_wordlist = args.wordlists[0] if args.wordlists else "subdomains-top1million-110000.txt"
 dir_wordlist = args.wordlists[1] if args.wordlists else "directory-list-2.3-big.txt"
 
 # Force the naming of downloaded wordlists
