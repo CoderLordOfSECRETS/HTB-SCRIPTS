@@ -82,9 +82,15 @@ def print_subdomain_tree(subdomain_tree, indent=0):
 # Function to run a command and wait for completion
 def run_command(command):
     try:
-        subprocess.run(command, check=True)
-    except subprocess.CalledProcessError as e:
-        print(f"Command failed with exit code {e.returncode}: {e.cmd}", file=sys.stderr)
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+        for line in process.stdout:
+            sys.stdout.write(line)
+        process.communicate()
+        if process.returncode != 0:
+            print(f"Command failed with exit code {process.returncode}: {command}", file=sys.stderr)
+            sys.exit(1)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
 # Perform subdomain enumeration using gobuster
