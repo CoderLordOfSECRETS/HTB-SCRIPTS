@@ -3,14 +3,18 @@
 import sys
 import subprocess
 import socket
+import argparse
+import requests
 
 # Function to print usage information
 def usage():
-    print("Usage: {} -d <domain> [-p <port>] [-i <ip_address>]".format(sys.argv[0]))
+    print("Usage: {} -d <domain> [-p <port>] [-i <ip_address>] [-w <subdomain_wordlist> <dir_wordlist>]".format(sys.argv[0]))
     print("Options:")
-    print("  -d <domain>       Specify the target domain")
-    print("  -p <port>         Specify the port on the target host (default: 80)")
-    print("  -i <ip_address>   Specify the IP address to use for all subdomains (optional)")
+    print("  -d <domain>         Specify the target domain")
+    print("  -p <port>           Specify the port on the target host (default: 80)")
+    print("  -i <ip_address>     Specify the IP address to use for all subdomains (optional)")
+    print("  -w <subdomain_wordlist> <dir_wordlist>")
+    print("                      Specify custom wordlists for subdomains and directories")
     sys.exit(1)
 
 # Function to resolve IP address of a domain
@@ -23,32 +27,32 @@ def resolve_ip(domain):
         sys.exit(1)
 
 # Parse command-line arguments
-domain = None
-port = None
-ip_address = None
-try:
-    args = sys.argv[1:]
-    while args:
-        opt = args.pop(0)
-        if opt == "-d":
-            domain = args.pop(0)
-        elif opt == "-p":
-            port = args.pop(0)
-        elif opt == "-i":
-            ip_address = args.pop(0)
-        else:
-            print("Invalid option: {}".format(opt), file=sys.stderr)
-            usage()
-    if not domain:
-        print("Error: Domain not specified.", file=sys.stderr)
-        usage()
-except IndexError:
-    print("Option {} requires an argument.".format(opt), file=sys.stderr)
-    usage()
+parser = argparse.ArgumentParser()
+parser.add_argument("-d", "--domain", help="Specify the target domain", required=True)
+parser.add_argument("-p", "--port", help="Specify the port on the target host (default: 80)", default="80")
+parser.add_argument("-i", "--ip_address", help="Specify the IP address to use for all subdomains (optional)")
+parser.add_argument("-w", "--wordlists", nargs=2, metavar=("subdomain_wordlist", "dir_wordlist"),
+                    help="Specify custom wordlists for subdomains and directories")
+args = parser.parse_args()
+
+# Check if custom wordlists are provided, otherwise download default wordlists
+subdomain_wordlist = args.wordlists[0] if args.wordlists else "subdomains.txt"
+dir_wordlist = args.wordlists[1] if args.wordlists else "directory-list-2.3-big.txt"
+
+if not args.wordlists:
+    print("No wordlists specified. Downloading default wordlists...")
+    wordlist_urls = {
+        "subdomain_wordlist": "https://github.com/danielmiessler/SecLists/raw/master/Discovery/DNS/subdomains-top1million-110000.txt",
+        "dir_wordlist": "https://github.com/danielmiessler/SecLists/raw/master/Discovery/Web-Content/directory-list-2.3-big.txt"
+    }
+    for wordlist_name, wordlist_url in wordlist_urls.items():
+        print(f"Downloading {wordlist_name}...")
+        r = requests.get(wordlist_url, allow_redirects=True)
+        open(wordlist_name, 'wb').write(r.content)
+    print("Download complete.")
 
 # Set default port if not provided
-if not port:
-    port = "80"
+port = args.port
 
 # Function to update /etc/hosts file
 def update_hosts_file(ip_address, domain):
@@ -66,22 +70,22 @@ def print_subdomain_tree(subdomain_tree, indent=0):
                 print("  " * (indent + 1) + "|- {}".format(directory))
 
 # Perform subdomain enumeration using gobuster
-print("Enumerating subdomains for {}...".format(domain))
-subprocess.run(["gobuster", "dns", "-d", domain, "-w", "/usr/share/wordlists/subdomains.txt", "-q", "-o", "gobuster_subdomains_{}.txt".format(domain)])
+print("Enumerating subdomains for {}...".format(args.domain))
+subprocess.run(["gobuster", "dns", "-d", args.domain, "-w", subdomain_wordlist, "-q", "-o", "gobuster_subdomains_{}.txt".format(args.domain)])
 
 # Parse and update /etc/hosts file with subdomains
 subdomain_tree = {}
-with open("gobuster_subdomains_{}.txt".format(domain)) as subdomains_file:
+with open("gobuster_subdomains_{}.txt".format(args.domain)) as subdomains_file:
     for line in subdomains_file:
         subdomain = line.split()[0]
-        if ip_address:
-            update_hosts_file(ip_address, subdomain)
-            print("Found subdomain:", subdomain, "IP:", ip_address)
+        if args.ip_address:
+            update_hosts_file(args.ip_address, subdomain)
+            print("Found subdomain:", subdomain, "IP:", args.ip_address)
             parts = subdomain.split('.')
             current_level = subdomain_tree
             for part in parts:
                 current_level = current_level.setdefault(part, {})
-            current_level[subdomain] = ip_address
+            current_level[subdomain] = args.ip_address
         else:
             ip_address = resolve_ip(subdomain)
             update_hosts_file(ip_address, subdomain)
@@ -95,25 +99,25 @@ with open("gobuster_subdomains_{}.txt".format(domain)) as subdomains_file:
 # Function to perform directory enumeration recursively
 def enumerate_directories_recursive(url, depth, current_node):
     # Perform directory enumeration using gobuster
-    subprocess.run(["gobuster", "dir", "-u", url, "-w", "/usr/share/wordlists/dirb/common.txt", "-q", "-o", "gobuster_directories_{}.txt".format(domain)])
+    subprocess.run(["gobuster", "dir", "-u", url, "-w", dir_wordlist, "-q", "-o", "gobuster_directories_{}.txt".format(args.domain)])
 
     # Extract directories and add them to the subdomain tree
-    with open("gobuster_directories_{}.txt".format(domain)) as directories_file:
+    with open("gobuster_directories_{}.txt".format(args.domain)) as directories_file:
         directories = [line.strip() for line in directories_file]
         current_node.extend(directories)
 
     # Extract newly discovered subdomains and initiate directory scans
-    with open("gobuster_directories_{}.txt".format(domain)) as directories_file:
+    with open("gobuster_directories_{}.txt".format(args.domain)) as directories_file:
         for line in directories_file:
             new_subdomain = line.split("//")[1].split("/")[0]
             enumerate_directories_recursive("http://{}".format(new_subdomain), depth + 1, current_node)
 
 # Perform initial directory enumeration
-print("Enumerating directories for {}...".format(domain))
-enumerate_directories_recursive("http://{}:{}".format(domain, port), 0, subdomain_tree)
+print("Enumerating directories for {}...".format(args.domain))
+enumerate_directories_recursive("http://{}:{}".format(args.domain, port), 0, subdomain_tree)
 
 # Print subdomain tree
-print("Subdomain tree for {}:".format(domain))
+print("Subdomain tree for {}:".format(args.domain))
 print_subdomain_tree(subdomain_tree)
 
 print("Enumeration complete.")
