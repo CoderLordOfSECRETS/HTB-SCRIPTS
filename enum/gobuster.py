@@ -69,9 +69,18 @@ def print_subdomain_tree(subdomain_tree, indent=0):
             for directory in ip_address:
                 print("  " * (indent + 1) + "|- {}".format(directory))
 
+# Function to run a command and wait for completion
+def run_command(command):
+    try:
+        subprocess.run(command, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Command failed with exit code {e.returncode}: {e.cmd}", file=sys.stderr)
+        sys.exit(1)
+
 # Perform subdomain enumeration using gobuster
 print("Enumerating subdomains for {}...".format(args.domain))
-subprocess.run(["gobuster", "dns", "-d", args.domain, "-w", subdomain_wordlist, "-q", "-o", "gobuster_subdomains_{}.txt".format(args.domain)])
+subdomain_command = ["gobuster", "dns", "-d", args.domain, "-w", subdomain_wordlist, "-q", "-o", "gobuster_subdomains_{}.txt".format(args.domain)]
+run_command(subdomain_command)
 
 # Parse and update /etc/hosts file with subdomains
 subdomain_tree = {}
@@ -99,7 +108,8 @@ with open("gobuster_subdomains_{}.txt".format(args.domain)) as subdomains_file:
 # Function to perform directory enumeration recursively
 def enumerate_directories_recursive(url, depth, current_node):
     # Perform directory enumeration using gobuster
-    subprocess.run(["gobuster", "dir", "-u", url, "-w", dir_wordlist, "-q", "-o", "gobuster_directories_{}.txt".format(args.domain)])
+    directory_command = ["gobuster", "dir", "-u", url, "-w", dir_wordlist, "-q", "-o", "gobuster_directories_{}.txt".format(args.domain)]
+    run_command(directory_command)
 
     # Extract directories and add them to the subdomain tree
     with open("gobuster_directories_{}.txt".format(args.domain)) as directories_file:
