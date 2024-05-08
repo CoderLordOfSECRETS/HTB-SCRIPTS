@@ -82,10 +82,17 @@ def print_subdomain_tree(subdomain_tree, indent=0):
 # Function to run a command and wait for completion
 def run_command(command):
     try:
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
-        for line in process.stdout:
-            sys.stdout.write(line)
-        process.communicate()
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        while True:
+            output = process.stdout.readline()
+            error = process.stderr.readline()
+            if output == '' and error == '' and process.poll() is not None:
+                break
+            if output:
+                sys.stdout.write(output)
+            if error:
+                sys.stderr.write(error)
+        process.wait()
         if process.returncode != 0:
             print(f"Command failed with exit code {process.returncode}: {command}", file=sys.stderr)
             sys.exit(1)
