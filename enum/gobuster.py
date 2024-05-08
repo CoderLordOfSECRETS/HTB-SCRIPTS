@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import sys
 import subprocess
 import socket
@@ -9,13 +7,14 @@ import os
 
 # Function to print usage information
 def usage():
-    print("Usage: {} -d <domain> [-p <port>] [-i <ip_address>] [-w <subdomain_wordlist> <dir_wordlist>]".format(sys.argv[0]))
+    print("Usage: {} -d <domain> [-p <port>] [-i <ip_address>] [-w <subdomain_wordlist> <dir_wordlist>] [--vhost]".format(sys.argv[0]))
     print("Options:")
     print("  -d <domain>         Specify the target domain")
     print("  -p <port>           Specify the port on the target host (default: 80)")
     print("  -i <ip_address>     Specify the IP address to use for all subdomains (optional)")
     print("  -w <subdomain_wordlist> <dir_wordlist>")
     print("                      Specify custom wordlists for subdomains and directories")
+    print("  --vhost             Perform virtual host scanning only (no subdomain enumeration)")
     sys.exit(1)
 
 # Function to resolve IP address of a domain
@@ -34,14 +33,24 @@ parser.add_argument("-p", "--port", help="Specify the port on the target host (d
 parser.add_argument("-i", "--ip_address", help="Specify the IP address to use for all subdomains (optional)")
 parser.add_argument("-w", "--wordlists", nargs=2, metavar=("subdomain_wordlist", "dir_wordlist"),
                     help="Specify custom wordlists for subdomains and directories")
+parser.add_argument("--vhost", action="store_true", help="Perform virtual host scanning only (no subdomain enumeration)")
 args = parser.parse_args()
 
+if args.vhost and args.wordlists:
+    print("Error: --vhost flag cannot be used with custom wordlists.")
+    sys.exit(1)
+
 # Check if custom wordlists are provided, otherwise download default wordlists
-subdomain_wordlist = args.wordlists[0] if args.wordlists else "subdomains-top1million-110000.txt"
-dir_wordlist = args.wordlists[1] if args.wordlists else "directory-list-2.3-big.txt"
+if args.wordlists:
+    subdomain_wordlist = args.wordlists[0]
+    dir_wordlist = args.wordlists[1]
+else:
+    subdomain_wordlist = "subdomains-top1million-110000.txt"
+    dir_wordlist = "directory-list-2.3-big.txt"
 
 # Download default wordlists if they don't exist
 if not args.wordlists:
+    # Download default subdomain wordlist
     if not os.path.exists(subdomain_wordlist):
         print("Downloading default subdomain wordlist...")
         subdomain_wordlist_url = "https://github.com/danielmiessler/SecLists/raw/master/Discovery/DNS/subdomains-top1million-110000.txt"
@@ -50,6 +59,7 @@ if not args.wordlists:
             f.write(r.content)
         print("Download complete.")
 
+    # Download default directory wordlist
     if not os.path.exists(dir_wordlist):
         print("Downloading default directory wordlist...")
         dir_wordlist_url = "https://github.com/danielmiessler/SecLists/raw/master/Discovery/Web-Content/directory-list-2.3-big.txt"
@@ -82,17 +92,10 @@ def print_subdomain_tree(subdomain_tree, indent=0):
 # Function to run a command and wait for completion
 def run_command(command):
     try:
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-        while True:
-            output = process.stdout.readline()
-            error = process.stderr.readline()
-            if output == '' and error == '' and process.poll() is not None:
-                break
-            if output:
-                sys.stdout.write(output)
-            if error:
-                sys.stderr.write(error)
-        process.wait()
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+        for line in process.stdout:
+            sys.stdout.write(line)
+        process.communicate()
         if process.returncode != 0:
             print(f"Command failed with exit code {process.returncode}: {command}", file=sys.stderr)
             sys.exit(1)
@@ -101,32 +104,34 @@ def run_command(command):
         sys.exit(1)
 
 # Perform subdomain enumeration using gobuster
-print("Enumerating subdomains for {}...".format(args.domain))
-subdomain_command = ["gobuster", "dns", "-d", args.domain, "-w", subdomain_wordlist, "-q", "-o", "gobuster_subdomains_{}.txt".format(args.domain)]
-run_command(subdomain_command)
+if not args.vhost:
+    print("Enumerating subdomains for {}...".format(args.domain))
+    subdomain_command = ["gobuster", "dns", "-d", args.domain, "-w", subdomain_wordlist, "-q", "-o", "gobuster_subdomains_{}.txt".format(args.domain)]
+    run_command(subdomain_command)
 
 # Parse and update /etc/hosts file with subdomains
 subdomain_tree = {}
-with open("gobuster_subdomains_{}.txt".format(args.domain)) as subdomains_file:
-    for line in subdomains_file:
-        subdomain = line.split()[0]
-        if args.ip_address:
-            update_hosts_file(args.ip_address, subdomain)
-            print("Found subdomain:", subdomain, "IP:", args.ip_address)
-            parts = subdomain.split('.')
-            current_level = subdomain_tree
-            for part in parts:
-                current_level = current_level.setdefault(part, {})
-            current_level[subdomain] = args.ip_address
-        else:
-            ip_address = resolve_ip(subdomain)
-            update_hosts_file(ip_address, subdomain)
-            print("Found subdomain:", subdomain, "IP:", ip_address)
-            parts = subdomain.split('.')
-            current_level = subdomain_tree
-            for part in parts:
-                current_level = current_level.setdefault(part, {})
-            current_level[subdomain] = []
+if not args.vhost:
+    with open("gobuster_subdomains_{}.txt".format(args.domain)) as subdomains_file:
+        for line in subdomains_file:
+            subdomain = line.split()[0]
+            if args.ip_address:
+                update_hosts_file(args.ip_address, subdomain)
+                print("Found subdomain:", subdomain, "IP:", args.ip_address)
+                parts = subdomain.split('.')
+                current_level = subdomain_tree
+                for part in parts:
+                    current_level = current_level.setdefault(part, {})
+                current_level[subdomain] = args.ip_address
+            else:
+                ip_address = resolve_ip(subdomain)
+                update_hosts_file(ip_address, subdomain)
+                print("Found subdomain:", subdomain, "IP:", ip_address)
+                parts = subdomain.split('.')
+                current_level = subdomain_tree
+                for part in parts:
+                    current_level = current_level.setdefault(part, {})
+                current_level[subdomain] = []
 
 # Function to perform directory enumeration recursively
 def enumerate_directories_recursive(url, depth, current_node):
