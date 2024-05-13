@@ -77,7 +77,7 @@ while read -r domain; do
 done < <(echo "$STARTING_DOMAIN")
 
 # Run vhost scan
-ffuf -w "$VHOST_WORDLIST" -u "http://$STARTING_DOMAIN" -H "Host: FUZZ" -fs 0 -o "$OUTPUT_DIR/vhost_results.txt"
+ffuf -w "$VHOST_WORDLIST" -u "http://$STARTING_DOMAIN" -H "Host: FUZZ" -fs $(wget -qO- http://$STARTING_DOMAIN | wc -c) -o "$OUTPUT_DIR/vhost_results.txt"
 
 # Extract unique vhosts
 cut -d ' ' -f 2 "$OUTPUT_DIR/vhost_results.txt" | sort -u > "$OUTPUT_DIR/unique_vhosts.txt"
